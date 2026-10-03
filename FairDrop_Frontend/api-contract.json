@@ -1,0 +1,138 @@
+{
+  "base_url": "http://localhost:4000",
+  "health": "GET /health",
+  "authentication": {
+    "session": "The API returns token. Requests send Authorization: Bearer <token>.",
+    "google": "POST /auth/google accepts { credential }, verifies the Google Identity Services ID token, links/creates the account and returns { token, userId, isAdmin }.",
+    "registration": "POST /auth/register creates the account but does not issue a token. The frontend signs in with POST /auth/login after registration.",
+    "admin": "Admin endpoints and POST /queue/shuffle enforce the API admin role. Client-side UI is not an authorization boundary."
+  },
+  "routes": [
+    {
+      "method": "POST",
+      "path": "/auth/register",
+      "body": { "email": "string", "password": "string" },
+      "frontend_use": "Create an account. Follow with /auth/login to get a JWT."
+    },
+    {
+      "method": "POST",
+      "path": "/auth/login",
+      "body": { "email": "string", "password": "string" },
+      "response": { "token": "string", "userId": "uuid", "isAdmin": "boolean" },
+      "frontend_use": "Authenticate with email/password."
+    },
+    {
+      "method": "POST",
+      "path": "/auth/google",
+      "body": { "credential": "Google Identity Services ID token" },
+      "frontend_use": "Verify/link Google account server-side and issue a FairDrop JWT."
+    },
+    {
+      "method": "GET",
+      "path": "/auth/me",
+      "frontend_use": "Authenticated user profile."
+    },
+    {
+      "method": "GET",
+      "path": "/events",
+      "frontend_use": "Load live PostgreSQL events. IDs from this API are used for every subsequent booking action."
+    },
+    {
+      "method": "GET",
+      "path": "/events/:id",
+      "frontend_use": "Resolve live event details on its event page."
+    },
+    {
+      "method": "POST",
+      "path": "/queue/join",
+      "body": { "eventId": "uuid" },
+      "frontend_use": "Join queue as the authenticated user; API returns the queue entry."
+    },
+    {
+      "method": "GET",
+      "path": "/queue/status?eventId=:eventId",
+      "frontend_use": "Read the authenticated user's server-owned queue status, position and total_waiting."
+    },
+    {
+      "method": "POST",
+      "path": "/queue/shuffle",
+      "body": { "eventId": "uuid" },
+      "frontend_use": "Admin-only queue shuffle; response contains success and count."
+    },
+    {
+      "method": "GET",
+      "path": "/seats?eventId=:eventId",
+      "frontend_use": "Authenticated, admitted user receives seat records with id, seat_number and status."
+    },
+    {
+      "method": "GET",
+      "path": "/seats/available?eventId=:eventId",
+      "frontend_use": "Authenticated admitted-user available inventory."
+    },
+    {
+      "method": "POST",
+      "path": "/seats/hold",
+      "body": { "eventId": "uuid", "seatId": "seat uuid" },
+      "frontend_use": "Create a transactional hold and reservation; response contains reservation id and expiry."
+    },
+    {
+      "method": "DELETE",
+      "path": "/seats/hold/:seatId",
+      "frontend_use": "Release the signed-in user's active seat hold."
+    },
+    {
+      "method": "GET",
+      "path": "/reservations",
+      "frontend_use": "Authenticated user's reservation list."
+    },
+    {
+      "method": "GET",
+      "path": "/reservations/:id",
+      "frontend_use": "Verify the reservation status after mock payment; confirmed state is authoritative."
+    },
+    {
+      "method": "POST",
+      "path": "/payments/create-intent",
+      "body": { "reservationId": "reservation uuid" },
+      "frontend_use": "Create a mock payment intent for the authenticated user's active hold."
+    },
+    {
+      "method": "POST",
+      "path": "/payments/mock-success",
+      "body": { "payment_intent_id": "payment intent id" },
+      "frontend_use": "Demo-only mock success; the API applies payment and reservation changes transactionally."
+    },
+    {
+      "method": "POST",
+      "path": "/payments/webhook",
+      "frontend_use": "Server-to-server processing endpoint. Do not call this provider webhook from the browser."
+    },
+    {
+      "method": "GET",
+      "path": "/admin/stats?eventId=:eventId",
+      "frontend_use": "Admin-only seat and queue statistics for one event."
+    },
+    {
+      "method": "GET",
+      "path": "/admin/orders",
+      "frontend_use": "Admin-only reservations/operations list."
+    },
+    {
+      "method": "GET",
+      "path": "/admin/flags",
+      "frontend_use": "Admin-only risk flags."
+    }
+  ],
+  "compose": {
+    "frontend_origin": "http://localhost:3000",
+    "backend_origin": "http://localhost:4000",
+    "postgres": "PostgreSQL 16",
+    "redis": "Redis 7",
+    "google_oauth_javascript_origin": "Add http://localhost:3000 to the Google OAuth web client's Authorized JavaScript origins."
+  },
+  "rules": [
+    "Event data, queue status/order, admission, seat availability, reservations, payment status and admin permissions are server authoritative.",
+    "Redis and PostgreSQL are started by the supplied Docker Compose stack; their availability is required for API routes.",
+    "The frontend has no live payment provider and collects no card or banking credentials."
+  ]
+}
